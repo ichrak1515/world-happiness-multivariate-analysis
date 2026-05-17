@@ -1,0 +1,287 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+# ============================================================
+# Analyse Multivariée du Bonheur Mondial
+# ACP, K-Means, CAH
+# ============================================================
+tinytex::tlmgr_install("bookmark")
+# 1. Chargement des packages ---------------------------------
+library(tidyverse)
+library(FactoMineR)
+library(factoextra)
+library(cluster)
+library(corrplot)
+library(gridExtra)
+library(dendextend)
+library(knitr)
+library(kableExtra)
+
+# 2. Import des données --------------------------------------
+df <- read.csv("C:/Users/ichra/Downloads/happiness_data.csv", 
+               stringsAsFactors = FALSE)
+cat("Dimensions du dataset :", nrow(df), "lignes x", ncol(df), "colonnes\n")
+
+# 3. Variables numériques ------------------------------------
+num_vars <- c("Happiness_Score", "GDP_per_Capita", "Social_Support",
+              "Healthy_Life_Expectancy", "Freedom", "Generosity",
+              "Corruption_Perception", "Unemployment_Rate", "Education_Index")
+
+# 4. Description des variables (tableau) --------------------
+desc_vars <- data.frame(
+  Variable = c("Happiness_Score", "GDP_per_Capita", "Social_Support",
+               "Healthy_Life_Expectancy", "Freedom", "Generosity",
+               "Corruption_Perception", "Unemployment_Rate", 
+               "Education_Index", "Region"),
+  Type = c(rep("Numérique", 9), "Catégorielle"),
+  Description = c(
+    "Score de bonheur perçu (échelle Cantril)",
+    "Log du PIB par habitant (USD)",
+    "Support social perçu (0-1)",
+    "Espérance de vie en bonne santé (années)",
+    "Liberté de choix de vie (0-1)",
+    "Générosité perçue (dons)",
+    "Perception faible corruption (0-1)",
+    "Taux de chômage (%)",
+    "Indice de niveau d'éducation (0-1)",
+    "Région géographique (7 modalités)"
+  ),
+  Plage = c("2.0 – 8.0", "6.5 – 12.5", "0.30 – 0.99",
+            "45 – 80", "0.20 – 0.99", "-0.30 – 0.60",
+            "0.02 – 0.55", "1.6 – 18.8", "0.20 – 0.99", "–")
+)
+kable(desc_vars, caption = "Description des variables du dataset",
+      booktabs = TRUE, linesep = "") %>%
+  kable_styling(latex_options = c("striped", "hold_position"),
+                font_size = 10) %>%
+  column_spec(1, bold = TRUE, width = "4cm") %>%
+  column_spec(3, width = "6cm")
+cat("\n\n")
+
+# 5. Distribution régionale ---------------------------------
+region_tab <- as.data.frame(table(df$Region))
+colnames(region_tab) <- c("Région", "Nombre de pays")
+region_tab$Pourcentage <- round(100 * region_tab$`Nombre de pays` / nrow(df), 1)
+kable(region_tab, caption = "Distribution des pays par région",
+      booktabs = TRUE) %>%
+  kable_styling(latex_options = c("striped", "hold_position"))
+cat("\n\n")
+
+# 6. Qualité des données ------------------------------------
+cat("=== Valeurs manquantes ===\n")
+print(colSums(is.na(df[, num_vars])))
+cat("\nNombre de doublons :", sum(duplicated(df)), "\n\n")
+
+# 7. Statistiques descriptives ------------------------------
+stats <- df[, num_vars] %>%
+  summarise(across(everything(), list(
+    Min    = ~round(min(.), 3),
+    Moy    = ~round(mean(.), 3),
+    Med    = ~round(median(.), 3),
+    Max    = ~round(max(.), 3),
+    SD     = ~round(sd(.), 3)
+  )))
+stats_t <- as.data.frame(t(stats))
+stats_t$Variable <- gsub("_Min|_Moy|_Med|_Max|_SD", "", rownames(stats_t))
+stats_t$Stat <- gsub(".*_", "", rownames(stats_t))
+stats_wide <- stats_t %>%
+  pivot_wider(names_from = Stat, values_from = V1)
+kable(stats_wide, caption = "Statistiques descriptives des variables numériques",
+      booktabs = TRUE, digits = 3) %>%
+  kable_styling(latex_options = c("striped", "hold_position", "scale_down"),
+                font_size = 9)
+cat("\n\n")
+
+# 8. Histogrammes (commentés) -------------------------------
+# plots_hist <- lapply(num_vars, function(var) {
+#   ggplot(df, aes_string(x = var)) +
+#     geom_histogram(bins = 25, fill = "#2E86AB", color = "white", alpha = 0.85) +
+#     geom_vline(aes(xintercept = mean(df[[var]])),
+#                color = "black", linetype = "dashed", linewidth = 0.8) +
+#     labs(title = gsub("_", " ", var), x = "", y = "Fréquence") +
+#     theme_minimal(base_size = 9) +
+#     theme(plot.title = element_text(face = "bold", size = 9))
+# })
+# grid.arrange(grobs = plots_hist, ncol = 3)
+
+# 9. Matrice de corrélation (commentée) ---------------------
+corr_matrix <- cor(df[, num_vars])
+# corrplot(corr_matrix, method = "color", type = "lower",
+#          addCoef.col = "black", tl.col = "black", tl.srt = 45,
+#          number.cex = 0.7,
+#          col = colorRampPalette(c("#C73E1D", "white", "#2E86AB"))(200),
+#          mar = c(0, 0, 1, 0))
+cat("Corrélation Happiness_Score / GDP_per_Capita :", round(corr_matrix["Happiness_Score", "GDP_per_Capita"], 3), "\n")
+cat("Corrélation Happiness_Score / Healthy_Life_Expectancy :", round(corr_matrix["Happiness_Score", "Healthy_Life_Expectancy"], 3), "\n")
+cat("Corrélation Happiness_Score / Education_Index :", round(corr_matrix["Happiness_Score", "Education_Index"], 3), "\n")
+cat("Corrélation Happiness_Score / Unemployment_Rate :", round(corr_matrix["Happiness_Score", "Unemployment_Rate"], 3), "\n\n")
+
+# 10. Normalisation -----------------------------------------
+X_scaled <- scale(df[, num_vars])
+cat("Vérification : moyennes après normalisation (doivent être ≈ 0)\n")
+print(round(colMeans(X_scaled), 5))
+cat("\n")
+
+# 11. ACP ---------------------------------------------------
+res_pca <- PCA(df[, num_vars], scale.unit = TRUE, graph = FALSE)
+
+# Variance expliquée
+variance_df <- data.frame(
+  PC            = paste0("PC", 1:9),
+  Valeur_propre = round(res_pca$eig[, 1], 3),
+  Variance_pct  = round(res_pca$eig[, 2], 2),
+  Cumulative    = round(res_pca$eig[, 3], 2)
+)
+kable(variance_df, caption = "Variance expliquée par composante principale",
+      booktabs = TRUE,
+      col.names = c("Composante", "Valeur propre (λ)", 
+                    "Variance (%)", "Cumulée (%)")) %>%
+  kable_styling(latex_options = c("striped", "hold_position")) %>%
+  row_spec(1:2, bold = TRUE, color = "white", background = "#1A5276")
+cat("\n")
+
+# Scree plot (commenté)
+# fviz_eig(res_pca, addlabels = TRUE, ylim = c(0, 75),
+#          barfill = "#2E86AB", barcolor = "white", linecolor = "#F18F01") +
+#   labs(title = "Scree Plot — Variance Expliquée par Composante") +
+#   theme_minimal(base_size = 12)
+
+# Cercle des corrélations (commenté)
+# fviz_pca_var(res_pca, col.var = "contrib",
+#              gradient.cols = c("#C73E1D", "#F18F01", "#2E86AB"),
+#              repel = TRUE, title = "Cercle des Corrélations (PC1 × PC2)") +
+#   theme_minimal(base_size = 12)
+
+# Contributions (commentées)
+# p_c1 <- fviz_contrib(res_pca, choice = "var", axes = 1, fill = "#2E86AB", color = "white") +
+#   labs(title = "Contributions à PC1") + theme_minimal(base_size = 10)
+# p_c2 <- fviz_contrib(res_pca, choice = "var", axes = 2, fill = "#F18F01", color = "white") +
+#   labs(title = "Contributions à PC2") + theme_minimal(base_size = 10)
+# grid.arrange(p_c1, p_c2, ncol = 2)
+
+# Ajout des coordonnées PC pour les couleurs dans le biplot (commenté)
+df$PC1 <- res_pca$ind$coord[, 1]
+df$PC2 <- res_pca$ind$coord[, 2]
+# couleurs_region <- c(
+#   "Western Europe"            = "#2E86AB",
+#   "North America & ANZ"       = "#A23B72",
+#   "Latin America & Caribbean" = "#F18F01",
+#   "Central & Eastern Europe"  = "#C73E1D",
+#   "East Asia"                 = "#44BBA4",
+#   "Southeast Asia"            = "#E94F37",
+#   "Sub-Saharan Africa"        = "#6C3483"
+# )
+# fviz_pca_biplot(res_pca, geom.ind = "point", col.ind = df$Region,
+#                 palette = couleurs_region, addEllipses = TRUE,
+#                 ellipse.type = "convex", col.var = "black", repel = TRUE,
+#                 legend.title = "Région", title = "Biplot ACP : Individus et Variables") +
+#   theme_minimal(base_size = 11)
+
+# 12. Détermination du nombre de clusters (graphiques commentés) ----
+# fviz_nbclust(X_scaled, kmeans, method = "wss", k.max = 10, linecolor = "#2E86AB") +
+#   geom_vline(xintercept = 4, linetype = "dashed", color = "red", linewidth = 1) +
+#   labs(title = "Méthode du Coude (Elbow)", subtitle = "Ligne rouge = k=4 optimal") +
+#   theme_minimal(base_size = 12)
+# fviz_nbclust(X_scaled, kmeans, method = "silhouette", k.max = 10, linecolor = "#F18F01") +
+#   labs(title = "Score de Silhouette par k") + theme_minimal(base_size = 12)
+
+# 13. K-Means (k=4) -----------------------------------------
+set.seed(42)
+km4 <- kmeans(X_scaled, centers = 4, nstart = 25, iter.max = 100)
+df$Cluster <- as.factor(km4$cluster)
+cat("=== Taille des clusters ===\n")
+print(table(df$Cluster))
+sil <- silhouette(km4$cluster, dist(X_scaled))
+cat(sprintf("\nScore de silhouette moyen : %.4f\n", mean(sil[, 3])))
+cat(sprintf("Inertie expliquée         : %.2f%%\n", 
+            100 * km4$betweenss / km4$totss))
+cat("\n")
+
+# Visualisation des clusters (commentée)
+# fviz_cluster(km4, data = X_scaled, ellipse.type = "convex",
+#              palette = c("#2E86AB", "#F18F01", "#C73E1D", "#44BBA4"),
+#              ggtheme = theme_minimal(base_size = 12),
+#              main = "Clusters K-Means (k=4) dans l'Espace ACP", repel = TRUE)
+# fviz_silhouette(sil, palette = c("#2E86AB", "#F18F01", "#C73E1D", "#44BBA4"),
+#                 ggtheme = theme_minimal(base_size = 11),
+#                 main = "Diagramme de Silhouette (k=4)")
+
+# 14. CAH (dendrogramme commenté) ---------------------------
+set.seed(42)
+sample_idx <- sample(1:nrow(X_scaled), 80)
+dist_mat   <- dist(X_scaled[sample_idx, ], method = "euclidean")
+hc_ward    <- hclust(dist_mat, method = "ward.D2")
+dend <- as.dendrogram(hc_ward)
+dend <- color_branches(dend, k = 4,
+                       col = c("#2E86AB", "#F18F01", "#C73E1D", "#44BBA4"))
+dend <- set(dend, "labels_cex", 0.45)
+# plot(dend, main = "Dendrogramme CAH (Ward, n=80)", ylab = "Distance de Ward", xlab = "Observations")
+# abline(h = 8, col = "red", lty = 2, lwd = 2)
+# legend("topright", legend = "Seuil de coupure (4 clusters)", lty = 2, col = "red", lwd = 2, cex = 0.85)
+
+# 15. Profils moyens des clusters ---------------------------
+profils <- df %>%
+  group_by(Cluster) %>%
+  summarise(across(all_of(num_vars), ~round(mean(.), 3)),
+            n = n())
+kable(t(profils), caption = "Profils moyens des 4 clusters K-Means",
+      booktabs = TRUE) %>%
+  kable_styling(latex_options = c("striped", "hold_position", "scale_down"),
+                font_size = 9)
+cat("\n")
+
+# Heatmap des profils (commenté)
+# profils_long <- profils %>%
+#   select(-n) %>%
+#   pivot_longer(-Cluster, names_to = "Variable", values_to = "Valeur") %>%
+#   group_by(Variable) %>%
+#   mutate(Valeur_norm = (Valeur - min(Valeur)) / (max(Valeur) - min(Valeur)))
+# ggplot(profils_long, aes(x = Cluster, y = Variable, fill = Valeur_norm)) +
+#   geom_tile(color = "white", linewidth = 0.5) +
+#   geom_text(aes(label = round(Valeur, 2)), size = 3, color = "black") +
+#   scale_fill_gradient2(low = "#C73E1D", mid = "white", high = "#2E86AB",
+#                        midpoint = 0.5, name = "Valeur\nnormalisée") +
+#   labs(title = "Heatmap des Profils de Clusters", x = "Cluster", y = "") +
+#   theme_minimal(base_size = 12)
+
+# Composition régionale des clusters (graphique commenté)
+# cross_tab <- df %>%
+#   group_by(Cluster, Region) %>%
+#   summarise(n = n(), .groups = "drop") %>%
+#   group_by(Cluster) %>%
+#   mutate(pct = round(100 * n / sum(n), 1))
+# ggplot(cross_tab, aes(x = Cluster, y = pct, fill = Region)) +
+#   geom_bar(stat = "identity", color = "white") +
+#   scale_fill_manual(values = couleurs_region) +
+#   labs(title = "Composition Régionale des Clusters", x = "Cluster", y = "Proportion (%)", fill = "Région") +
+#   theme_minimal(base_size = 12)
+
+# 16. Interprétation ----------------------------------------
+best <- profils$Cluster[which.max(profils$Happiness_Score)]
+cat(sprintf("Cluster le plus heureux : %s | Bonheur=%.2f | PIB=%.2f | Education=%.2f | Chômage=%.1f%%\n",
+            best,
+            profils$Happiness_Score[profils$Cluster == best],
+            profils$GDP_per_Capita[profils$Cluster == best],
+            profils$Education_Index[profils$Cluster == best],
+            profils$Unemployment_Rate[profils$Cluster == best]))
+
+worst <- profils$Cluster[which.min(profils$Happiness_Score)]
+cat(sprintf("Cluster le moins heureux : %s | Bonheur=%.2f | PIB=%.2f | Chômage=%.1f%%\n",
+            worst,
+            profils$Happiness_Score[profils$Cluster == worst],
+            profils$GDP_per_Capita[profils$Cluster == worst],
+            profils$Unemployment_Rate[profils$Cluster == worst]))
+
+# 17. Résumé final ------------------------------------------
+cat("\n=============================================================\n")
+cat("  RÉSUMÉ DE L'ANALYSE MULTIVARIÉE\n")
+cat("=============================================================\n")
+cat(sprintf("  Dataset          : %d pays x %d variables\n", nrow(df), length(num_vars)))
+cat(sprintf("  PC1 variance     : %.2f%%\n", res_pca$eig[1, 2]))
+cat(sprintf("  PC1+PC2 variance : %.2f%%\n", res_pca$eig[2, 3]))
+cat(sprintf("  Clusters K-Means : k = 4\n"))
+cat(sprintf("  Score silhouette : %.4f\n", mean(sil[, 3])))
+cat(sprintf("  Inertie expliquée: %.2f%%\n", 100 * km4$betweenss / km4$totss))
+cat("=============================================================\n")

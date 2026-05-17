@@ -1,0 +1,499 @@
+% Options for packages loaded elsewhere
+\PassOptionsToPackage{unicode}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+\documentclass[
+]{article}
+\usepackage{xcolor}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\setcounter{secnumdepth}{-\maxdimen} % remove section numbering
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp} % provide euro and other symbols
+\else % if luatex or xetex
+  \usepackage{unicode-math} % this also loads fontspec
+  \defaultfontfeatures{Scale=MatchLowercase}
+  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\fi
+\usepackage{lmodern}
+\ifPDFTeX\else
+  % xetex/luatex font selection
+\fi
+% Use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\IfFileExists{microtype.sty}{% use microtype if available
+  \usepackage[]{microtype}
+  \UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\makeatletter
+\@ifundefined{KOMAClassName}{% if non-KOMA class
+  \IfFileExists{parskip.sty}{%
+    \usepackage{parskip}
+  }{% else
+    \setlength{\parindent}{0pt}
+    \setlength{\parskip}{6pt plus 2pt minus 1pt}}
+}{% if KOMA class
+  \KOMAoptions{parskip=half}}
+\makeatother
+\usepackage{graphicx}
+\makeatletter
+\newsavebox\pandoc@box
+\newcommand*\pandocbounded[1]{% scales image to fit in text height/width
+  \sbox\pandoc@box{#1}%
+  \Gscale@div\@tempa{\textheight}{\dimexpr\ht\pandoc@box+\dp\pandoc@box\relax}%
+  \Gscale@div\@tempb{\linewidth}{\wd\pandoc@box}%
+  \ifdim\@tempb\p@<\@tempa\p@\let\@tempa\@tempb\fi% select the smaller of both
+  \ifdim\@tempa\p@<\p@\scalebox{\@tempa}{\usebox\pandoc@box}%
+  \else\usebox{\pandoc@box}%
+  \fi%
+}
+% Set default figure placement to htbp
+\def\fps@figure{htbp}
+\makeatother
+\setlength{\emergencystretch}{3em} % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\usepackage{bookmark}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\urlstyle{same}
+\hypersetup{
+  hidelinks,
+  pdfcreator={LaTeX via pandoc}}
+
+\author{}
+\date{\vspace{-2.5em}}
+
+\begin{document}
+
+\section{============================================================}\label{section}
+
+\section{Analyse Multivariée du Bonheur
+Mondial}\label{analyse-multivariuxe9e-du-bonheur-mondial}
+
+\section{ACP, K-Means, CAH}\label{acp-k-means-cah}
+
+\section{============================================================}\label{section-1}
+
+tinytex::tlmgr\_install(``bookmark'') \# 1. Chargement des packages
+--------------------------------- library(tidyverse) library(FactoMineR)
+library(factoextra) library(cluster) library(corrplot)
+library(gridExtra) library(dendextend) library(knitr)
+library(kableExtra)
+
+\section{2. Import des données
+--------------------------------------}\label{import-des-donnuxe9es}
+
+df \textless- read.csv(``C:/Users/ichra/Downloads/happiness\_data.csv'',
+stringsAsFactors = FALSE) cat(``Dimensions du dataset :'', nrow(df),
+``lignes x'', ncol(df), ``colonnes\n'')
+
+\section{3. Variables numériques
+------------------------------------}\label{variables-numuxe9riques}
+
+num\_vars \textless- c(``Happiness\_Score'', ``GDP\_per\_Capita'',
+``Social\_Support'', ``Healthy\_Life\_Expectancy'', ``Freedom'',
+``Generosity'', ``Corruption\_Perception'', ``Unemployment\_Rate'',
+``Education\_Index'')
+
+\section{4. Description des variables (tableau)
+--------------------}\label{description-des-variables-tableau}
+
+desc\_vars \textless- data.frame( Variable = c(``Happiness\_Score'',
+``GDP\_per\_Capita'', ``Social\_Support'',
+``Healthy\_Life\_Expectancy'', ``Freedom'', ``Generosity'',
+``Corruption\_Perception'', ``Unemployment\_Rate'',
+``Education\_Index'', ``Region''), Type = c(rep(``Numérique'', 9),
+``Catégorielle''), Description = c( ``Score de bonheur perçu (échelle
+Cantril)'', ``Log du PIB par habitant (USD)'', ``Support social perçu
+(0-1)'', ``Espérance de vie en bonne santé (années)'', ``Liberté de
+choix de vie (0-1)'', ``Générosité perçue (dons)'', ``Perception faible
+corruption (0-1)'', ``Taux de chômage (\%)'', ``Indice de niveau
+d'éducation (0-1)'', ``Région géographique (7 modalités)'' ), Plage =
+c(``2.0 -- 8.0'', ``6.5 -- 12.5'', ``0.30 -- 0.99'', ``45 -- 80'',
+``0.20 -- 0.99'', ``-0.30 -- 0.60'', ``0.02 -- 0.55'', ``1.6 -- 18.8'',
+``0.20 -- 0.99'', ``--'') ) kable(desc\_vars, caption = ``Description
+des variables du dataset'', booktabs = TRUE, linesep = ``\,``)
+\%\textgreater\% kable\_styling(latex\_options = c(''striped'',
+``hold\_position''), font\_size = 10) \%\textgreater\% column\_spec(1,
+bold = TRUE, width = ``4cm'') \%\textgreater\% column\_spec(3, width =
+``6cm'') cat(``\n\n'')
+
+\section{5. Distribution régionale
+---------------------------------}\label{distribution-ruxe9gionale}
+
+region\_tab \textless- as.data.frame(table(df\(Region))
+colnames(region_tab) <- c("Région", "Nombre de pays")
+region_tab\)Pourcentage \textless- round(100 *
+region\_tab\$\texttt{Nombre\ de\ pays} / nrow(df), 1) kable(region\_tab,
+caption = ``Distribution des pays par région'', booktabs = TRUE)
+\%\textgreater\% kable\_styling(latex\_options = c(``striped'',
+``hold\_position'')) cat(``\n\n'')
+
+\section{6. Qualité des données
+------------------------------------}\label{qualituxe9-des-donnuxe9es}
+
+cat(``=== Valeurs manquantes ===\n'') print(colSums(is.na(df{[},
+num\_vars{]}))) cat(``\nNombre de doublons :'', sum(duplicated(df)),
+``\n\n'')
+
+\section{7. Statistiques descriptives
+------------------------------}\label{statistiques-descriptives}
+
+stats \textless- df{[}, num\_vars{]} \%\textgreater\%
+summarise(across(everything(), list( Min = \textasciitilde round(min(.),
+3), Moy = \textasciitilde round(mean(.), 3), Med =
+\textasciitilde round(median(.), 3), Max = \textasciitilde round(max(.),
+3), SD = \textasciitilde round(sd(.), 3) ))) stats\_t \textless-
+as.data.frame(t(stats))
+stats\_t\(Variable <- gsub("_Min|_Moy|_Med|_Max|_SD", "", rownames(stats_t))
+stats_t\)Stat \textless- gsub(``.*\_``,''``, rownames(stats\_t))
+stats\_wide \textless- stats\_t \%\textgreater\%
+pivot\_wider(names\_from = Stat, values\_from = V1) kable(stats\_wide,
+caption =''Statistiques descriptives des variables numériques'',
+booktabs = TRUE, digits = 3) \%\textgreater\%
+kable\_styling(latex\_options = c(``striped'', ``hold\_position'',
+``scale\_down''), font\_size = 9) cat(``\n\n'')
+
+\section{8. Histogrammes (commentés)
+-------------------------------}\label{histogrammes-commentuxe9s--}
+
+\section{plots\_hist \textless- lapply(num\_vars, function(var)
+\{}\label{plots_hist---lapplynum_vars-functionvar}
+
+\section{ggplot(df, aes\_string(x = var))
++}\label{ggplotdf-aes_stringx-var}
+
+\section{geom\_histogram(bins = 25, fill = ``\#2E86AB'', color =
+``white'', alpha = 0.85)
++}\label{geom_histogrambins-25-fill-2e86ab-color-white-alpha-0.85}
+
+\section{geom\_vline(aes(xintercept =
+mean(df{[}{[}var{]}{]})),}\label{geom_vlineaesxintercept-meandfvar}
+
+\section{color = ``black'', linetype = ``dashed'', linewidth = 0.8)
++}\label{color-black-linetype-dashed-linewidth-0.8}
+
+\section{\texorpdfstring{labs(title = gsub(``\_``,'' ``, var), x =''``,
+y =''Fréquence'')
++}{labs(title = gsub(``\_``,'' ``, var), x =''\,``, y =''Fréquence'') +}}\label{labstitle-gsub_-var-x-y-fruxe9quence}
+
+\section{theme\_minimal(base\_size = 9)
++}\label{theme_minimalbase_size-9}
+
+\section{theme(plot.title = element\_text(face = ``bold'', size =
+9))}\label{themeplot.title-element_textface-bold-size-9}
+
+\section{\})}\label{section-2}
+
+\section{grid.arrange(grobs = plots\_hist, ncol =
+3)}\label{grid.arrangegrobs-plots_hist-ncol-3}
+
+\section{9. Matrice de corrélation (commentée)
+---------------------}\label{matrice-de-corruxe9lation-commentuxe9e}
+
+corr\_matrix \textless- cor(df{[}, num\_vars{]}) \#
+corrplot(corr\_matrix, method = ``color'', type = ``lower'', \#
+addCoef.col = ``black'', tl.col = ``black'', tl.srt = 45, \# number.cex
+= 0.7, \# col = colorRampPalette(c(``\#C73E1D'', ``white'',
+``\#2E86AB''))(200), \# mar = c(0, 0, 1, 0)) cat(``Corrélation
+Happiness\_Score / GDP\_per\_Capita :'',
+round(corr\_matrix{[}``Happiness\_Score'', ``GDP\_per\_Capita''{]}, 3),
+``\n'') cat(``Corrélation Happiness\_Score / Healthy\_Life\_Expectancy
+:'', round(corr\_matrix{[}``Happiness\_Score'',
+``Healthy\_Life\_Expectancy''{]}, 3), ``\n'') cat(``Corrélation
+Happiness\_Score / Education\_Index :'',
+round(corr\_matrix{[}``Happiness\_Score'', ``Education\_Index''{]}, 3),
+``\n'') cat(``Corrélation Happiness\_Score / Unemployment\_Rate :'',
+round(corr\_matrix{[}``Happiness\_Score'', ``Unemployment\_Rate''{]},
+3), ``\n\n'')
+
+\section{10. Normalisation
+-----------------------------------------}\label{normalisation}
+
+X\_scaled \textless- scale(df{[}, num\_vars{]}) cat(``Vérification :
+moyennes après normalisation (doivent être ≈ 0)\n'')
+print(round(colMeans(X\_scaled), 5)) cat(``\n'')
+
+\section{11. ACP
+---------------------------------------------------}\label{acp}
+
+res\_pca \textless- PCA(df{[}, num\_vars{]}, scale.unit = TRUE, graph =
+FALSE)
+
+\section{Variance expliquée}\label{variance-expliquuxe9e}
+
+variance\_df \textless- data.frame( PC = paste0(``PC'', 1:9),
+Valeur\_propre = round(res\_pca\(eig[, 1], 3),
+  Variance_pct  = round(res_pca\)eig{[}, 2{]}, 2), Cumulative =
+round(res\_pca\$eig{[}, 3{]}, 2) ) kable(variance\_df, caption =
+``Variance expliquée par composante principale'', booktabs = TRUE,
+col.names = c(``Composante'', ``Valeur propre (λ)'', ``Variance (\%)'',
+``Cumulée (\%)'')) \%\textgreater\% kable\_styling(latex\_options =
+c(``striped'', ``hold\_position'')) \%\textgreater\% row\_spec(1:2, bold
+= TRUE, color = ``white'', background = ``\#1A5276'') cat(``\n'')
+
+\section{Scree plot (commenté)}\label{scree-plot-commentuxe9}
+
+\section{fviz\_eig(res\_pca, addlabels = TRUE, ylim = c(0,
+75),}\label{fviz_eigres_pca-addlabels-true-ylim-c0-75}
+
+\section{barfill = ``\#2E86AB'', barcolor = ``white'', linecolor =
+``\#F18F01'') +}\label{barfill-2e86ab-barcolor-white-linecolor-f18f01}
+
+\section{labs(title = ``Scree Plot --- Variance Expliquée par
+Composante'')
++}\label{labstitle-scree-plot-variance-expliquuxe9e-par-composante}
+
+\section{theme\_minimal(base\_size =
+12)}\label{theme_minimalbase_size-12}
+
+\section{Cercle des corrélations
+(commenté)}\label{cercle-des-corruxe9lations-commentuxe9}
+
+\section{fviz\_pca\_var(res\_pca, col.var =
+``contrib'',}\label{fviz_pca_varres_pca-col.var-contrib}
+
+\section{gradient.cols = c(``\#C73E1D'', ``\#F18F01'',
+``\#2E86AB''),}\label{gradient.cols-cc73e1d-f18f01-2e86ab}
+
+\section{repel = TRUE, title = ``Cercle des Corrélations (PC1 × PC2)'')
++}\label{repel-true-title-cercle-des-corruxe9lations-pc1-pc2}
+
+\section{theme\_minimal(base\_size =
+12)}\label{theme_minimalbase_size-12-1}
+
+\section{Contributions (commentées)}\label{contributions-commentuxe9es}
+
+\section{p\_c1 \textless- fviz\_contrib(res\_pca, choice = ``var'', axes
+= 1, fill = ``\#2E86AB'', color = ``white'')
++}\label{p_c1---fviz_contribres_pca-choice-var-axes-1-fill-2e86ab-color-white}
+
+\section{labs(title = ``Contributions à PC1'') +
+theme\_minimal(base\_size =
+10)}\label{labstitle-contributions-uxe0-pc1-theme_minimalbase_size-10}
+
+\section{p\_c2 \textless- fviz\_contrib(res\_pca, choice = ``var'', axes
+= 2, fill = ``\#F18F01'', color = ``white'')
++}\label{p_c2---fviz_contribres_pca-choice-var-axes-2-fill-f18f01-color-white}
+
+\section{labs(title = ``Contributions à PC2'') +
+theme\_minimal(base\_size =
+10)}\label{labstitle-contributions-uxe0-pc2-theme_minimalbase_size-10}
+
+\section{grid.arrange(p\_c1, p\_c2, ncol =
+2)}\label{grid.arrangep_c1-p_c2-ncol-2}
+
+\section{Ajout des coordonnées PC pour les couleurs dans le biplot
+(commenté)}\label{ajout-des-coordonnuxe9es-pc-pour-les-couleurs-dans-le-biplot-commentuxe9}
+
+df\(PC1 <- res_pca\)ind\(coord[, 1]
+df\)PC2 \textless- res\_pca\(ind\)coord{[}, 2{]} \# couleurs\_region
+\textless- c( \# ``Western Europe'' = ``\#2E86AB'', \# ``North America
+\& ANZ'' = ``\#A23B72'', \# ``Latin America \& Caribbean'' =
+``\#F18F01'', \# ``Central \& Eastern Europe'' = ``\#C73E1D'', \# ``East
+Asia'' = ``\#44BBA4'', \# ``Southeast Asia'' = ``\#E94F37'', \#
+``Sub-Saharan Africa'' = ``\#6C3483'' \# ) \#
+fviz\_pca\_biplot(res\_pca, geom.ind = ``point'', col.ind = df\$Region,
+\# palette = couleurs\_region, addEllipses = TRUE, \# ellipse.type =
+``convex'', col.var = ``black'', repel = TRUE, \# legend.title =
+``Région'', title = ``Biplot ACP : Individus et Variables'') + \#
+theme\_minimal(base\_size = 11)
+
+\section{12. Détermination du nombre de clusters (graphiques commentés)
+----}\label{duxe9termination-du-nombre-de-clusters-graphiques-commentuxe9s--}
+
+\section{fviz\_nbclust(X\_scaled, kmeans, method = ``wss'', k.max = 10,
+linecolor = ``\#2E86AB'')
++}\label{fviz_nbclustx_scaled-kmeans-method-wss-k.max-10-linecolor-2e86ab}
+
+\section{geom\_vline(xintercept = 4, linetype = ``dashed'', color =
+``red'', linewidth = 1)
++}\label{geom_vlinexintercept-4-linetype-dashed-color-red-linewidth-1}
+
+\section{labs(title = ``Méthode du Coude (Elbow)'', subtitle = ``Ligne
+rouge = k=4 optimal'')
++}\label{labstitle-muxe9thode-du-coude-elbow-subtitle-ligne-rouge-k4-optimal}
+
+\section{theme\_minimal(base\_size =
+12)}\label{theme_minimalbase_size-12-2}
+
+\section{fviz\_nbclust(X\_scaled, kmeans, method = ``silhouette'', k.max
+= 10, linecolor = ``\#F18F01'')
++}\label{fviz_nbclustx_scaled-kmeans-method-silhouette-k.max-10-linecolor-f18f01}
+
+\section{labs(title = ``Score de Silhouette par k'') +
+theme\_minimal(base\_size =
+12)}\label{labstitle-score-de-silhouette-par-k-theme_minimalbase_size-12}
+
+\section{13. K-Means (k=4)
+-----------------------------------------}\label{k-means-k4}
+
+set.seed(42) km4 \textless- kmeans(X\_scaled, centers = 4, nstart = 25,
+iter.max = 100) df\(Cluster <- as.factor(km4\)cluster) cat(``=== Taille
+des clusters ===\n'') print(table(df\(Cluster))
+sil <- silhouette(km4\)cluster, dist(X\_scaled))
+cat(sprintf(``\nScore de silhouette moyen : \%.4f\n'', mean(sil{[},
+3{]}))) cat(sprintf(``Inertie expliquée : \%.2f\%\%\n'', 100 *
+km4\(betweenss / km4\)totss)) cat(``\n'')
+
+\section{Visualisation des clusters
+(commentée)}\label{visualisation-des-clusters-commentuxe9e}
+
+\section{fviz\_cluster(km4, data = X\_scaled, ellipse.type =
+``convex'',}\label{fviz_clusterkm4-data-x_scaled-ellipse.type-convex}
+
+\section{palette = c(``\#2E86AB'', ``\#F18F01'', ``\#C73E1D'',
+``\#44BBA4''),}\label{palette-c2e86ab-f18f01-c73e1d-44bba4}
+
+\section{ggtheme = theme\_minimal(base\_size =
+12),}\label{ggtheme-theme_minimalbase_size-12}
+
+\section{main = ``Clusters K-Means (k=4) dans l'Espace ACP'', repel =
+TRUE)}\label{main-clusters-k-means-k4-dans-lespace-acp-repel-true}
+
+\section{fviz\_silhouette(sil, palette = c(``\#2E86AB'', ``\#F18F01'',
+``\#C73E1D'',
+``\#44BBA4''),}\label{fviz_silhouettesil-palette-c2e86ab-f18f01-c73e1d-44bba4}
+
+\section{ggtheme = theme\_minimal(base\_size =
+11),}\label{ggtheme-theme_minimalbase_size-11}
+
+\section{main = ``Diagramme de Silhouette
+(k=4)'')}\label{main-diagramme-de-silhouette-k4}
+
+\section{14. CAH (dendrogramme commenté)
+---------------------------}\label{cah-dendrogramme-commentuxe9}
+
+set.seed(42) sample\_idx \textless- sample(1:nrow(X\_scaled), 80)
+dist\_mat \textless- dist(X\_scaled{[}sample\_idx, {]}, method =
+``euclidean'') hc\_ward \textless- hclust(dist\_mat, method =
+``ward.D2'') dend \textless- as.dendrogram(hc\_ward) dend \textless-
+color\_branches(dend, k = 4, col = c(``\#2E86AB'', ``\#F18F01'',
+``\#C73E1D'', ``\#44BBA4'')) dend \textless- set(dend, ``labels\_cex'',
+0.45) \# plot(dend, main = ``Dendrogramme CAH (Ward, n=80)'', ylab =
+``Distance de Ward'', xlab = ``Observations'') \# abline(h = 8, col =
+``red'', lty = 2, lwd = 2) \# legend(``topright'', legend = ``Seuil de
+coupure (4 clusters)'', lty = 2, col = ``red'', lwd = 2, cex = 0.85)
+
+\section{15. Profils moyens des clusters
+---------------------------}\label{profils-moyens-des-clusters}
+
+profils \textless- df \%\textgreater\% group\_by(Cluster)
+\%\textgreater\% summarise(across(all\_of(num\_vars),
+\textasciitilde round(mean(.), 3)), n = n()) kable(t(profils), caption =
+``Profils moyens des 4 clusters K-Means'', booktabs = TRUE)
+\%\textgreater\% kable\_styling(latex\_options = c(``striped'',
+``hold\_position'', ``scale\_down''), font\_size = 9) cat(``\n'')
+
+\section{Heatmap des profils
+(commenté)}\label{heatmap-des-profils-commentuxe9}
+
+\section{profils\_long \textless- profils
+\%\textgreater\%}\label{profils_long---profils}
+
+\section{select(-n) \%\textgreater\%}\label{select-n}
+
+\section{pivot\_longer(-Cluster, names\_to = ``Variable'', values\_to =
+``Valeur'')
+\%\textgreater\%}\label{pivot_longer-cluster-names_to-variable-values_to-valeur}
+
+\section{group\_by(Variable) \%\textgreater\%}\label{group_byvariable}
+
+\section{mutate(Valeur\_norm = (Valeur - min(Valeur)) / (max(Valeur) -
+min(Valeur)))}\label{mutatevaleur_norm-valeur---minvaleur-maxvaleur---minvaleur}
+
+\section{ggplot(profils\_long, aes(x = Cluster, y = Variable, fill =
+Valeur\_norm))
++}\label{ggplotprofils_long-aesx-cluster-y-variable-fill-valeur_norm}
+
+\section{geom\_tile(color = ``white'', linewidth = 0.5)
++}\label{geom_tilecolor-white-linewidth-0.5}
+
+\section{geom\_text(aes(label = round(Valeur, 2)), size = 3, color =
+``black'') +}\label{geom_textaeslabel-roundvaleur-2-size-3-color-black}
+
+\section{scale\_fill\_gradient2(low = ``\#C73E1D'', mid = ``white'',
+high =
+``\#2E86AB'',}\label{scale_fill_gradient2low-c73e1d-mid-white-high-2e86ab}
+
+\section{\texorpdfstring{midpoint = 0.5, name = ``Valeur\nnormalisée'')
++}{midpoint = 0.5, name = ``Valeur'') +}}\label{midpoint-0.5-name-valeur}
+
+\section{labs(title = ``Heatmap des Profils de Clusters'', x =
+``Cluster'', y = ``\,``)
++}\label{labstitle-heatmap-des-profils-de-clusters-x-cluster-y}
+
+\section{theme\_minimal(base\_size =
+12)}\label{theme_minimalbase_size-12-3}
+
+\section{Composition régionale des clusters (graphique
+commenté)}\label{composition-ruxe9gionale-des-clusters-graphique-commentuxe9}
+
+\section{cross\_tab \textless- df
+\%\textgreater\%}\label{cross_tab---df}
+
+\section{group\_by(Cluster, Region)
+\%\textgreater\%}\label{group_bycluster-region}
+
+\section{summarise(n = n(), .groups = ``drop'')
+\%\textgreater\%}\label{summarisen-n-.groups-drop}
+
+\section{group\_by(Cluster) \%\textgreater\%}\label{group_bycluster}
+
+\section{mutate(pct = round(100 * n / sum(n),
+1))}\label{mutatepct-round100-n-sumn-1}
+
+\section{ggplot(cross\_tab, aes(x = Cluster, y = pct, fill = Region))
++}\label{ggplotcross_tab-aesx-cluster-y-pct-fill-region}
+
+\section{geom\_bar(stat = ``identity'', color = ``white'')
++}\label{geom_barstat-identity-color-white}
+
+\section{scale\_fill\_manual(values = couleurs\_region)
++}\label{scale_fill_manualvalues-couleurs_region}
+
+\section{labs(title = ``Composition Régionale des Clusters'', x =
+``Cluster'', y = ``Proportion (\%)'', fill = ``Région'')
++}\label{labstitle-composition-ruxe9gionale-des-clusters-x-cluster-y-proportion-fill-ruxe9gion}
+
+\section{theme\_minimal(base\_size =
+12)}\label{theme_minimalbase_size-12-4}
+
+\section{16. Interprétation
+----------------------------------------}\label{interpruxe9tation--}
+
+best \textless- profils\(Cluster[which.max(profils\)Happiness\_Score){]}
+cat(sprintf(``Cluster le plus heureux : \%s \textbar{} Bonheur=\%.2f
+\textbar{} PIB=\%.2f \textbar{} Education=\%.2f \textbar{}
+Chômage=\%.1f\%\%\n'', best, profils\(Happiness_Score[profils\)Cluster
+== best{]}, profils\(GDP_per_Capita[profils\)Cluster == best{]},
+profils\(Education_Index[profils\)Cluster == best{]},
+profils\(Unemployment_Rate[profils\)Cluster == best{]}))
+
+worst \textless-
+profils\(Cluster[which.min(profils\)Happiness\_Score){]}
+cat(sprintf(``Cluster le moins heureux : \%s \textbar{} Bonheur=\%.2f
+\textbar{} PIB=\%.2f \textbar{} Chômage=\%.1f\%\%\n'', worst,
+profils\(Happiness_Score[profils\)Cluster == worst{]},
+profils\(GDP_per_Capita[profils\)Cluster == worst{]},
+profils\(Unemployment_Rate[profils\)Cluster == worst{]}))
+
+\section{17. Résumé final
+------------------------------------------}\label{ruxe9sumuxe9-final}
+
+cat(``\n=============================================================\n'')
+cat('' RÉSUMÉ DE L'ANALYSE MULTIVARIÉE\n``)
+cat(''=============================================================\n``)
+cat(sprintf('' Dataset : \%d pays x \%d variables\n``, nrow(df),
+length(num\_vars))) cat(sprintf('' PC1 variance : \%.2f\%\%\n``,
+res\_pca\(eig[1, 2]))
+cat(sprintf("  PC1+PC2 variance : %.2f%%\n", res_pca
+\)eig{[}2, 3{]})) cat(sprintf('' Clusters K-Means : k = 4\n``))
+cat(sprintf('' Score silhouette : \%.4f\n``, mean(sil{[}, 3{]})))
+cat(sprintf('' Inertie expliquée: \%.2f\%\%\n``, 100 *
+km4\(betweenss / km4\)totss))
+cat(''=============================================================\n``)
+
+\end{document}
